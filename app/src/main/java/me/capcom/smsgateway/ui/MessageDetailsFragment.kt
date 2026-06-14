@@ -48,7 +48,7 @@ class MessageDetailsFragment : Fragment() {
                         mms.subject?.takeIf { s -> s.isNotEmpty() },
                         mms.text?.takeIf { t -> t.isNotEmpty() },
                         "${mms.parts.size} attachment(s): $attachments".takeIf { mms.parts.isNotEmpty() },
-                    ).joinToString("\n")
+                    ).joinToString("\n").ifBlank { it.message.content }
                 } ?: it.message.content
 
                 else -> it.message.content
