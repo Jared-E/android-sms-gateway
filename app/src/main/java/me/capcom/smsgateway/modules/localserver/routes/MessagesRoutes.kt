@@ -154,6 +154,20 @@ class MessagesRoutes(
                     )
                 }
 
+                request.mmsMessage != null -> {
+                    MessageContent.Multimedia(
+                        subject = request.mmsMessage.subject,
+                        text = request.mmsMessage.text,
+                        parts = request.mmsMessage.attachments.map {
+                            MessageContent.Multimedia.Part(
+                                contentType = it.contentType,
+                                name = it.name,
+                                data = it.data,
+                            )
+                        }
+                    )
+                }
+
                 else -> {
                     // This case should be caught by validation, but just in case
                     throw IllegalStateException("Unknown message type")

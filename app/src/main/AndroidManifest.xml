@@ -56,6 +56,7 @@
             <intent-filter>
                 <action android:name="me.capcom.smsgateway.ACTION_SENT" />
                 <action android:name="me.capcom.smsgateway.ACTION_DELIVERED" />
+                <action android:name="me.capcom.smsgateway.ACTION_MMS_SENT" />
             </intent-filter>
         </receiver>
         <receiver
@@ -82,6 +83,12 @@
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
+
+        <provider
+            android:name=".modules.messages.mms.MmsPduProvider"
+            android:authorities="me.capcom.smsgateway.mms"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <activity
             android:name=".MainActivity"

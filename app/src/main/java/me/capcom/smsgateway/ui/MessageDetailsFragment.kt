@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.DividerItemDecoration
+import me.capcom.smsgateway.data.entities.MessageType
 import me.capcom.smsgateway.databinding.FragmentMessageDetailsBinding
 import me.capcom.smsgateway.modules.messages.vm.MessageDetailsViewModel
 import me.capcom.smsgateway.ui.adapters.MessageRecipientsAdapter
@@ -40,7 +41,18 @@ class MessageDetailsFragment : Fragment() {
 
         viewModel.message.observe(viewLifecycleOwner) {
             binding.textMessageId.text = it.message.id
-            binding.textMessage.text = it.message.content.toString()
+            binding.textMessage.text = when (it.message.type) {
+                MessageType.Mms -> it.message.mmsContent?.let { mms ->
+                    val attachments = mms.parts.joinToString { p -> p.name ?: p.contentType }
+                    listOfNotNull(
+                        mms.subject?.takeIf { s -> s.isNotEmpty() },
+                        mms.text?.takeIf { t -> t.isNotEmpty() },
+                        "${mms.parts.size} attachment(s): $attachments".takeIf { mms.parts.isNotEmpty() },
+                    ).joinToString("\n")
+                } ?: it.message.content
+
+                else -> it.message.content
+            }
             binding.textMessageState.text = it.state.name
             recipientsAdapter.submitList(it.recipients)
         }

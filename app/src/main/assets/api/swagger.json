@@ -232,6 +232,53 @@
         ],
         "type": "object"
       },
+      "smsgateway.MmsAttachment": {
+        "properties": {
+          "contentType": {
+            "description": "MIME type of the attachment.",
+            "example": "image/jpeg",
+            "type": "string"
+          },
+          "data": {
+            "description": "Base64-encoded attachment content.",
+            "example": "SGVsbG8gV29ybGQh",
+            "format": "byte",
+            "type": "string"
+          },
+          "name": {
+            "description": "Optional file name.",
+            "example": "photo.jpg",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contentType",
+          "data"
+        ],
+        "type": "object"
+      },
+      "smsgateway.MmsMessage": {
+        "properties": {
+          "attachments": {
+            "description": "Media attachments (base64-encoded).",
+            "items": {
+              "$ref": "#/components/schemas/smsgateway.MmsAttachment"
+            },
+            "type": "array"
+          },
+          "subject": {
+            "description": "Optional MMS subject.",
+            "example": "Vacation photo",
+            "type": "string"
+          },
+          "text": {
+            "description": "Optional body text.",
+            "example": "Check out this photo!",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "smsgateway.Device": {
         "properties": {
           "createdAt": {
@@ -775,6 +822,15 @@
             "example": "Hello World!",
             "maxLength": 65535,
             "type": "string"
+          },
+          "mmsMessage": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/smsgateway.MmsMessage"
+              }
+            ],
+            "description": "MMS message (text and/or base64 attachments). Sent via SmsManager.sendMultimediaMessage; the device does not need to be the default SMS app. Yields a single sent state (no per-recipient delivery report).",
+            "type": "object"
           },
           "phoneNumbers": {
             "description": "Recipients (phone numbers)",

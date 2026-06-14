@@ -106,6 +106,7 @@ SMS Gateway turns your Android smartphone into an SMS gateway. It's a lightweigh
 - 💳 **Multiple SIM card support:** Supports devices with [multiple SIM cards](https://docs.sms-gate.app/features/multi-sim/).
 - 📱📱 **Multiple device support:** Connect [multiple devices](https://docs.sms-gate.app/features/multi-device/) to the same account with Cloud or Private server. Messages sent via the server are distributed across all connected devices.
 - 💾 **Data SMS support:** Send and receive binary [data payloads](https://docs.sms-gate.app/features/data-sms.md) via SMS for IoT commands, encrypted messages, and other specialized use cases.
+- 🖼️ **MMS sending:** Send multimedia messages (text and/or media attachments) without setting the app as the default SMS app — uses the platform's `sendMultimediaMessage`, so the carrier MMSC and connectivity are handled automatically.
 
 🔌 Integration:
 
@@ -206,6 +207,29 @@ This mode is ideal for sending messages from a local network.
     smsgate -e 'http://<device_local_ip>:8080/message' -u <username> -p <password> \
       send --phones '+19162255887,+19162255888' 'Hello, doctors!'
     ```
+
+6. To send an **MMS** (text and/or media attachments), provide an `mmsMessage` with base64-encoded
+   attachments. Sending uses `SmsManager.sendMultimediaMessage`, so the device does **not** need to
+   be set as the default SMS app. The carrier MMSC and connectivity are handled by the platform.
+
+    ```sh
+    curl -X POST -u <username>:<password> \
+      -H "Content-Type: application/json" \
+      -d '{
+            "mmsMessage": {
+              "subject": "Vacation photo",
+              "text": "Check out this photo!",
+              "attachments": [
+                { "contentType": "image/jpeg", "name": "photo.jpg", "data": "<base64-encoded-bytes>" }
+              ]
+            },
+            "phoneNumbers": ["+19162255887"]
+          }' \
+      http://<device_local_ip>:8080/message
+    ```
+
+   Unlike SMS, an MMS results in a single sent state for the message (no per-recipient delivery
+   report).
 
 ### Cloud Server
 

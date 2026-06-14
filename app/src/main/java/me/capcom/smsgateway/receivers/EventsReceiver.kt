@@ -45,6 +45,7 @@ class EventsReceiver : BroadcastReceiver(), KoinComponent {
 
         const val ACTION_SENT = "me.capcom.smsgateway.ACTION_SENT"
         const val ACTION_DELIVERED = "me.capcom.smsgateway.ACTION_DELIVERED"
+        const val ACTION_MMS_SENT = "me.capcom.smsgateway.ACTION_MMS_SENT"
 
         private fun getInstance(): EventsReceiver {
             return INSTANCE ?: EventsReceiver().also { INSTANCE = it }
@@ -54,7 +55,10 @@ class EventsReceiver : BroadcastReceiver(), KoinComponent {
             context.registerReceiver(
                 getInstance(),
                 IntentFilter(ACTION_SENT)
-                    .apply { addAction(ACTION_DELIVERED) }
+                    .apply {
+                        addAction(ACTION_DELIVERED)
+                        addAction(ACTION_MMS_SENT)
+                    }
             )
         }
     }

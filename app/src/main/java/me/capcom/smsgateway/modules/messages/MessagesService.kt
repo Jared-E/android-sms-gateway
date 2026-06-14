@@ -37,6 +37,8 @@ import me.capcom.smsgateway.modules.messages.data.SendRequest
 import me.capcom.smsgateway.modules.messages.data.StoredSendRequest
 import me.capcom.smsgateway.modules.messages.events.MessageStateChangedEvent
 import me.capcom.smsgateway.modules.messages.exceptions.ConflictException
+import me.capcom.smsgateway.modules.messages.mms.MmsPduComposer
+import me.capcom.smsgateway.modules.messages.mms.MmsPduProvider
 import me.capcom.smsgateway.modules.messages.workers.LogTruncateWorker
 import me.capcom.smsgateway.modules.messages.workers.SendMessagesWorker
 import me.capcom.smsgateway.receivers.EventsReceiver
@@ -180,6 +182,15 @@ class MessagesService(
                 else -> return
             }
 
+            EventsReceiver.ACTION_MMS_SENT -> when (resultCode) {
+                Activity.RESULT_OK -> ProcessingState.Sent to null
+                else -> {
+                    val httpStatus = intent.getIntExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, 0)
+                    ProcessingState.Failed to ("MMS send result: $resultCode" +
+                            if (httpStatus != 0) " (HTTP $httpStatus)" else "")
+                }
+            }
+
             EventsReceiver.ACTION_DELIVERED -> when (resultCode) {
                 Activity.RESULT_OK -> {
                     val message = SmsMessage.createFromPdu(
@@ -199,9 +210,9 @@ class MessagesService(
             else -> return
         }
 
-        val (id, phone) = intent.dataString?.split("|", limit = 2) ?: return
+        val parts = intent.dataString?.split("|", limit = 2) ?: return
 
-        updateState(id, phone, state, error)
+        updateState(parts[0], parts.getOrNull(1), state, error)
     }
 
     suspend fun truncateLog() {
@@ -351,6 +362,11 @@ class MessagesService(
             dao.updateSimNumber(id, simNumber + 1)
         }
 
+        if (message.content is MessageContent.Multimedia) {
+            sendMMS(request, smsManager)
+            return
+        }
+
         val sendFn: (String, PendingIntent, PendingIntent?) -> Unit =
             when (val content = message.content) {
                 is MessageContent.Text -> {
@@ -412,6 +428,8 @@ class MessagesService(
                         )
                     }
                 }
+
+                is MessageContent.Multimedia -> throw IllegalStateException("MMS is handled by sendMMS")
             }
 
 
@@ -475,6 +493,74 @@ class MessagesService(
                     )
                 }
             }
+    }
+
+    private suspend fun sendMMS(request: StoredSendRequest, smsManager: SmsManager) {
+        val message = request.message
+        val id = message.id
+        val content = message.content as MessageContent.Multimedia
+
+        fun decrypt(value: String): String =
+            if (message.isEncrypted) encryptionService.decrypt(value) else value
+
+        val subject = content.subject?.let { decrypt(it) }
+        val text = content.text?.let { decrypt(it) }
+
+        val parts = content.parts.map { part ->
+            val decoded = try {
+                Base64.decode(decrypt(part.data), Base64.DEFAULT)
+            } catch (e: IllegalArgumentException) {
+                throw IllegalArgumentException("Invalid Base64 attachment for message $id", e)
+            }
+            MmsPduComposer.Part(part.contentType, part.name?.let { decrypt(it) }, decoded)
+        }
+
+        val recipients = message.phoneNumbers.map { source ->
+            val phoneNumber = decrypt(source)
+            when (request.params.skipPhoneValidation) {
+                true -> phoneNumber.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
+                false -> PhoneHelper.filterPhoneNumber(phoneNumber, countryCode ?: "RU")
+            }
+        }
+
+        dao.updatePartsCount(id, parts.size + (if (text.isNullOrEmpty()) 0 else 1))
+
+        val pdu = MmsPduComposer.compose(
+            transactionId = id,
+            recipients = recipients,
+            subject = subject,
+            text = text,
+            parts = parts,
+            deliveryReport = request.params.withDeliveryReport,
+        )
+
+        val contentUri = MmsPduProvider.writePdu(context, id, pdu)
+
+        val sentIntent = PendingIntent.getBroadcast(
+            context,
+            0,
+            Intent(
+                EventsReceiver.ACTION_MMS_SENT,
+                Uri.parse(id),
+                context,
+                EventsReceiver::class.java
+            ),
+            PendingIntent.FLAG_MUTABLE
+        )
+
+        try {
+            smsManager.sendMultimediaMessage(context, contentUri, null, null, sentIntent)
+            updateState(id, null, ProcessingState.Processed)
+        } catch (th: Throwable) {
+            MmsPduProvider.cleanup(context, contentUri)
+            logsService.insert(
+                LogEntry.Priority.ERROR,
+                MODULE_NAME,
+                "Can't send MMS: " + th.message,
+                mapOf("stacktrace" to th.stackTraceToString())
+            )
+            updateState(id, null, ProcessingState.Failed, "sendMMS: " + th.message)
+        }
     }
 
     @SuppressLint("NewApi")

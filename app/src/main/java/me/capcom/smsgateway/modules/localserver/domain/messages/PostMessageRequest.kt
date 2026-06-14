@@ -16,6 +16,7 @@ data class PostMessageRequest(
 
     val textMessage: TextMessage? = null,
     val dataMessage: DataMessage? = null,
+    val mmsMessage: MmsMessage? = null,
 
     val deviceId: String? = null,
 
@@ -43,9 +44,9 @@ data class PostMessageRequest(
 
     fun validate(): PostMessageRequest {
         val messageTypes =
-            listOfNotNull(textMessage, dataMessage, message)
+            listOfNotNull(textMessage, dataMessage, mmsMessage, message)
         when {
-            messageTypes.isEmpty() -> throw IllegalArgumentException("Must specify exactly one of: textMessage, dataMessage, or message")
+            messageTypes.isEmpty() -> throw IllegalArgumentException("Must specify exactly one of: textMessage, dataMessage, mmsMessage, or message")
             messageTypes.size > 1 -> throw IllegalArgumentException("Cannot specify multiple message types simultaneously")
         }
 
@@ -70,6 +71,21 @@ data class PostMessageRequest(
         // Validate text message parameters
         if (textMessage?.text?.isEmpty() == true) {
             throw IllegalArgumentException("Text message is empty")
+        }
+
+        // Validate MMS message parameters
+        mmsMessage?.let { mms ->
+            if (mms.attachments.isEmpty() && mms.text.isNullOrEmpty()) {
+                throw IllegalArgumentException("MMS message must have text or at least one attachment")
+            }
+            mms.attachments.forEach { attachment ->
+                if (attachment.contentType.isBlank()) {
+                    throw IllegalArgumentException("MMS attachment contentType cannot be empty")
+                }
+                if (attachment.data.isEmpty()) {
+                    throw IllegalArgumentException("MMS attachment data cannot be empty")
+                }
+            }
         }
 
         if (phoneNumbers.isEmpty()) {

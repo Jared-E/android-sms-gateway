@@ -12,4 +12,23 @@ sealed class MessageContent {
             return "$data:$port"
         }
     }
+
+    data class Multimedia(
+        val subject: String?,
+        val text: String?,
+        val parts: List<Part>,
+    ) : MessageContent() {
+        /**
+         * A single MMS attachment. [data] is Base64-encoded binary content.
+         */
+        data class Part(
+            val contentType: String,
+            val name: String?,
+            val data: String,
+        )
+
+        override fun toString(): String {
+            return "mms[subject=$subject, text=$text, parts=${parts.size}]"
+        }
+    }
 }
