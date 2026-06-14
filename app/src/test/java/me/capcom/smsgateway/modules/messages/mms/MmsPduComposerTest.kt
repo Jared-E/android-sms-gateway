@@ -45,7 +45,7 @@ internal class MmsPduComposerTest {
                 "48 65 6C 6C 6F " +                                 // "Hello"
                 // part 2: image/png; name=a.png, [01 02 03]
                 "19 03 " +                                          // headers len, data len
-                "11 69 6D 61 67 65 2F 70 6E 67 00 97 61 2E 70 6E 67 00 " + // content-type + name param
+                "11 69 6D 61 67 65 2F 70 6E 67 00 85 61 2E 70 6E 67 00 " + // content-type + name param
                 "8E 61 2E 70 6E 67 00 " +                           // Content-Location: a.png
                 "01 02 03"                                          // data
             )

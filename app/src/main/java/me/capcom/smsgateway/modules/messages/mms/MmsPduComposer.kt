@@ -49,7 +49,10 @@ object MmsPduComposer {
 
     // well-known WSP parameter tokens
     private const val PARAM_CHARSET = 0x01
-    private const val PARAM_NAME = 0x17
+
+    // Name parameter: use the deprecated token (0x05) for maximum carrier/handset
+    // compatibility, matching AOSP's PduComposer.
+    private const val PARAM_NAME = 0x05
 
     // UTF-8 IANA MIBenum (106) as a short-integer
     private const val CHARSET_UTF8 = 0x6A

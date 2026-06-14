@@ -182,12 +182,18 @@ class MessagesService(
                 else -> return
             }
 
-            EventsReceiver.ACTION_MMS_SENT -> when (resultCode) {
-                Activity.RESULT_OK -> ProcessingState.Sent to null
-                else -> {
-                    val httpStatus = intent.getIntExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, 0)
-                    ProcessingState.Failed to ("MMS send result: $resultCode" +
-                            if (httpStatus != 0) " (HTTP $httpStatus)" else "")
+            EventsReceiver.ACTION_MMS_SENT -> {
+                // The platform MMS service is done with the PDU now; remove the cached file.
+                intent.dataString?.let { MmsPduProvider.cleanup(context, it) }
+                when (resultCode) {
+                    Activity.RESULT_OK -> ProcessingState.Sent to null
+                    else -> {
+                        // Literal key instead of SmsManager.EXTRA_MMS_HTTP_STATUS to avoid a
+                        // NoSuchFieldError on older API 21 devices.
+                        val httpStatus = intent.getIntExtra("android.telephony.extra.MMS_HTTP_STATUS", 0)
+                        ProcessingState.Failed to ("MMS send result: $resultCode" +
+                                if (httpStatus != 0) " (HTTP $httpStatus)" else "")
+                    }
                 }
             }
 
@@ -521,38 +527,43 @@ class MessagesService(
                 true -> phoneNumber.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
                 false -> PhoneHelper.filterPhoneNumber(phoneNumber, countryCode ?: "RU")
             }
-        }
+        }.filter { it.isNotBlank() }
 
         dao.updatePartsCount(id, parts.size + (if (text.isNullOrEmpty()) 0 else 1))
 
-        val pdu = MmsPduComposer.compose(
-            transactionId = id,
-            recipients = recipients,
-            subject = subject,
-            text = text,
-            parts = parts,
-            deliveryReport = request.params.withDeliveryReport,
-        )
-
-        val contentUri = MmsPduProvider.writePdu(context, id, pdu)
-
-        val sentIntent = PendingIntent.getBroadcast(
-            context,
-            0,
-            Intent(
-                EventsReceiver.ACTION_MMS_SENT,
-                Uri.parse(id),
-                context,
-                EventsReceiver::class.java
-            ),
-            PendingIntent.FLAG_MUTABLE
-        )
-
+        var contentUri: Uri? = null
         try {
+            if (recipients.isEmpty()) {
+                throw IllegalArgumentException("No valid recipients for MMS")
+            }
+
+            val pdu = MmsPduComposer.compose(
+                transactionId = id,
+                recipients = recipients,
+                subject = subject,
+                text = text,
+                parts = parts,
+                deliveryReport = request.params.withDeliveryReport,
+            )
+
+            contentUri = MmsPduProvider.writePdu(context, id, pdu)
+
+            val sentIntent = PendingIntent.getBroadcast(
+                context,
+                0,
+                Intent(
+                    EventsReceiver.ACTION_MMS_SENT,
+                    Uri.parse(id),
+                    context,
+                    EventsReceiver::class.java
+                ),
+                PendingIntent.FLAG_MUTABLE
+            )
+
             smsManager.sendMultimediaMessage(context, contentUri, null, null, sentIntent)
             updateState(id, null, ProcessingState.Processed)
         } catch (th: Throwable) {
-            MmsPduProvider.cleanup(context, contentUri)
+            contentUri?.let { MmsPduProvider.cleanup(context, it) }
             logsService.insert(
                 LogEntry.Priority.ERROR,
                 MODULE_NAME,

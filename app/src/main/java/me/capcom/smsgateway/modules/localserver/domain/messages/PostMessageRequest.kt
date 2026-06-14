@@ -85,6 +85,10 @@ data class PostMessageRequest(
                 if (attachment.data.isEmpty()) {
                     throw IllegalArgumentException("MMS attachment data cannot be empty")
                 }
+                // Cap base64 size (~1.5MB binary) to avoid OutOfMemory during decode/PDU build.
+                if (attachment.data.length > MAX_ATTACHMENT_BASE64_LENGTH) {
+                    throw IllegalArgumentException("MMS attachment size exceeds the 2MB limit")
+                }
             }
         }
 
@@ -101,5 +105,10 @@ data class PostMessageRequest(
         }
 
         return this
+    }
+
+    companion object {
+        // ~2MB of base64 ≈ ~1.5MB binary per attachment
+        private const val MAX_ATTACHMENT_BASE64_LENGTH = 2 * 1024 * 1024
     }
 }
