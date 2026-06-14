@@ -62,6 +62,14 @@ class MmsPduProvider : ContentProvider() {
             File(context.cacheDir, DIR).apply { mkdirs() }
 
         /**
+         * Deterministic, traversal-safe filename for a message [id] (which may be client-supplied
+         * and contain `/`, `..`, etc.). Same input always maps to the same file so that
+         * [writePdu] and [cleanup] agree.
+         */
+        private fun fileName(id: String): String =
+            id.replace(Regex("[^A-Za-z0-9_-]"), "_") + ".pdu"
+
+        /**
          * Resolve [name] within the MMS cache dir, rejecting any path traversal attempt.
          * Returns null if the resolved path escapes the directory.
          */
@@ -76,9 +84,13 @@ class MmsPduProvider : ContentProvider() {
          * Persist [pdu] to cache and return the `content://` Uri the MMS service should read.
          */
         fun writePdu(context: Context, id: String, pdu: ByteArray): Uri {
-            val name = "$id.pdu"
+            val name = fileName(id)
             File(cacheDir(context), name).writeBytes(pdu)
-            return Uri.parse("content://$AUTHORITY/$name")
+            return Uri.Builder()
+                .scheme("content")
+                .authority(AUTHORITY)
+                .appendPath(name)
+                .build()
         }
 
         fun cleanup(context: Context, uri: Uri) {
@@ -88,7 +100,7 @@ class MmsPduProvider : ContentProvider() {
 
         /** Delete the cached PDU for [id] (called once the system MMS service is done with it). */
         fun cleanup(context: Context, id: String) {
-            resolveSafely(context, "$id.pdu")?.delete()
+            resolveSafely(context, fileName(id))?.delete()
         }
     }
 }

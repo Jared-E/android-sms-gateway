@@ -158,7 +158,7 @@ class MessagesRoutes(
                     MessageContent.Multimedia(
                         subject = request.mmsMessage.subject,
                         text = request.mmsMessage.text,
-                        parts = request.mmsMessage.attachments.map {
+                        parts = request.mmsMessage.attachments.orEmpty().map {
                             MessageContent.Multimedia.Part(
                                 contentType = it.contentType,
                                 name = it.name,

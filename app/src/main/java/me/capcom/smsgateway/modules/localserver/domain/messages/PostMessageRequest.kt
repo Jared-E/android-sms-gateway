@@ -75,20 +75,29 @@ data class PostMessageRequest(
 
         // Validate MMS message parameters
         mmsMessage?.let { mms ->
-            if (mms.attachments.isEmpty() && mms.text.isNullOrEmpty()) {
+            val attachments = mms.attachments.orEmpty()
+            if (attachments.isEmpty() && mms.text.isNullOrEmpty()) {
                 throw IllegalArgumentException("MMS message must have text or at least one attachment")
             }
-            mms.attachments.forEach { attachment ->
+            if (attachments.size > MAX_ATTACHMENT_COUNT) {
+                throw IllegalArgumentException("MMS message has too many attachments (max $MAX_ATTACHMENT_COUNT)")
+            }
+            var totalBase64 = 0L
+            attachments.forEach { attachment ->
                 if (attachment.contentType.isBlank()) {
                     throw IllegalArgumentException("MMS attachment contentType cannot be empty")
                 }
-                if (attachment.data.isEmpty()) {
+                if (attachment.data.isBlank()) {
                     throw IllegalArgumentException("MMS attachment data cannot be empty")
                 }
                 // Cap base64 size (~1.5MB binary) to avoid OutOfMemory during decode/PDU build.
                 if (attachment.data.length > MAX_ATTACHMENT_BASE64_LENGTH) {
                     throw IllegalArgumentException("MMS attachment size exceeds the 2MB limit")
                 }
+                totalBase64 += attachment.data.length
+            }
+            if (totalBase64 > MAX_TOTAL_BASE64_LENGTH) {
+                throw IllegalArgumentException("MMS total attachment size exceeds the limit")
             }
         }
 
@@ -110,5 +119,7 @@ data class PostMessageRequest(
     companion object {
         // ~2MB of base64 ≈ ~1.5MB binary per attachment
         private const val MAX_ATTACHMENT_BASE64_LENGTH = 2 * 1024 * 1024
+        private const val MAX_TOTAL_BASE64_LENGTH = 6L * 1024 * 1024
+        private const val MAX_ATTACHMENT_COUNT = 25
     }
 }

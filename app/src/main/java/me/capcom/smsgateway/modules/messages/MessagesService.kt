@@ -562,7 +562,7 @@ class MessagesService(
 
             smsManager.sendMultimediaMessage(context, contentUri, null, null, sentIntent)
             updateState(id, null, ProcessingState.Processed)
-        } catch (th: Throwable) {
+        } catch (th: Exception) {
             contentUri?.let { MmsPduProvider.cleanup(context, it) }
             logsService.insert(
                 LogEntry.Priority.ERROR,
