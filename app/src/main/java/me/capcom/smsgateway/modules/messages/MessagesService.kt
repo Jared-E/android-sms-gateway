@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.Telephony
 import android.telephony.SmsManager
 import android.telephony.SmsMessage
 import android.telephony.TelephonyManager
@@ -547,6 +548,7 @@ class MessagesService(
             )
 
             contentUri = MmsPduProvider.writePdu(context, id, pdu)
+            grantPduReadPermission(contentUri)
 
             val sentIntent = PendingIntent.getBroadcast(
                 context,
@@ -571,6 +573,29 @@ class MessagesService(
                 mapOf("stacktrace" to th.stackTraceToString())
             )
             updateState(id, null, ProcessingState.Failed, "sendMMS: " + th.message)
+        }
+    }
+
+    /**
+     * Best-effort: explicitly grant the platform MMS/phone packages read access to the PDU [uri]
+     * before [SmsManager.sendMultimediaMessage] reads it from another process. The provider already
+     * declares `grantUriPermissions="true"`, but some OEM telephony stacks need the explicit grant.
+     */
+    private fun grantPduReadPermission(uri: Uri) {
+        val packages = buildSet {
+            try {
+                Telephony.Sms.getDefaultSmsPackage(context)?.let { add(it) }
+            } catch (_: Throwable) {
+            }
+            add("com.android.phone")
+            add("com.android.mms.service")
+        }
+        packages.forEach { pkg ->
+            try {
+                context.grantUriPermission(pkg, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (_: Exception) {
+                // best effort
+            }
         }
     }
 
