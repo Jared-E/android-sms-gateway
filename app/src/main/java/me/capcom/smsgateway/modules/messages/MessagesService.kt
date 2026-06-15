@@ -533,6 +533,7 @@ class MessagesService(
         dao.updatePartsCount(id, parts.size + (if (text.isNullOrEmpty()) 0 else 1))
 
         var contentUri: Uri? = null
+        var submitted = false
         try {
             if (recipients.isEmpty()) {
                 throw IllegalArgumentException("No valid recipients for MMS")
@@ -563,16 +564,24 @@ class MessagesService(
             )
 
             smsManager.sendMultimediaMessage(context, contentUri, null, null, sentIntent)
+            submitted = true
             updateState(id, null, ProcessingState.Processed)
         } catch (th: Exception) {
-            contentUri?.let { MmsPduProvider.cleanup(context, it) }
+            // Once the PDU is handed off the platform MMS service still needs the file, so only
+            // clean up / mark failed for pre-submit failures. After submission the ACTION_MMS_SENT
+            // callback drives the final state and cleanup.
+            if (!submitted) {
+                contentUri?.let { MmsPduProvider.cleanup(context, it) }
+            }
             logsService.insert(
                 LogEntry.Priority.ERROR,
                 MODULE_NAME,
-                "Can't send MMS: " + th.message,
+                (if (submitted) "MMS submitted but post-submit handling failed: " else "Can't send MMS: ") + th.message,
                 mapOf("stacktrace" to th.stackTraceToString())
             )
-            updateState(id, null, ProcessingState.Failed, "sendMMS: " + th.message)
+            if (!submitted) {
+                updateState(id, null, ProcessingState.Failed, "sendMMS: " + th.message)
+            }
         }
     }
 

@@ -43,6 +43,12 @@ data class PostMessageRequest(
         }
 
     fun validate(): PostMessageRequest {
+        // The send/delivery callback URIs use '|' as the id/phone delimiter, so a custom id
+        // containing it would be misparsed when updating message state.
+        if (id?.contains('|') == true) {
+            throw IllegalArgumentException("Message id cannot contain '|'")
+        }
+
         val messageTypes =
             listOfNotNull(textMessage, dataMessage, mmsMessage, message)
         when {

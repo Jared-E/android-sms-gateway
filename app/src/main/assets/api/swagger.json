@@ -240,9 +240,10 @@
             "type": "string"
           },
           "data": {
-            "description": "Base64-encoded attachment content.",
+            "description": "Base64-encoded attachment content. Maximum encoded length is 2 MiB (2097152 bytes).",
             "example": "SGVsbG8gV29ybGQh",
             "format": "byte",
+            "maxLength": 2097152,
             "type": "string"
           },
           "name": {
@@ -258,12 +259,14 @@
         "type": "object"
       },
       "smsgateway.MmsMessage": {
+        "description": "Must include non-empty text and/or at least one attachment. Total encoded attachment data across all attachments must not exceed 6 MiB (6291456 bytes).",
         "properties": {
           "attachments": {
-            "description": "Media attachments (base64-encoded).",
+            "description": "Media attachments (base64-encoded). At most 25 attachments.",
             "items": {
               "$ref": "#/components/schemas/smsgateway.MmsAttachment"
             },
+            "maxItems": 25,
             "type": "array"
           },
           "subject": {
@@ -2431,7 +2434,7 @@
             }
           },
           {
-            "description": "Include textMessage/dataMessage content for each message. Default is false",
+            "description": "Include textMessage/dataMessage/mmsMessage content for each message. Default is false",
             "in": "query",
             "name": "includeContent",
             "schema": {

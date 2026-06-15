@@ -7,6 +7,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Exposes a composed MMS `M-Send.req` PDU to the system MMS service so that
@@ -62,12 +63,17 @@ class MmsPduProvider : ContentProvider() {
             File(context.cacheDir, DIR).apply { mkdirs() }
 
         /**
-         * Deterministic, traversal-safe filename for a message [id] (which may be client-supplied
-         * and contain `/`, `..`, etc.). Same input always maps to the same file so that
+         * Deterministic, collision-resistant, traversal-safe filename for a message [id] (which may
+         * be client-supplied and contain `/`, `..`, etc.). A SHA-256 hash guarantees distinct ids
+         * map to distinct hex-only filenames, and the same id always maps to the same file so that
          * [writePdu] and [cleanup] agree.
          */
-        private fun fileName(id: String): String =
-            id.replace(Regex("[^A-Za-z0-9_-]"), "_") + ".pdu"
+        private fun fileName(id: String): String {
+            val hash = MessageDigest.getInstance("SHA-256")
+                .digest(id.toByteArray(Charsets.UTF_8))
+                .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            return "$hash.pdu"
+        }
 
         /**
          * Resolve [name] within the MMS cache dir, rejecting any path traversal attempt.
